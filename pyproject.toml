@@ -1,0 +1,23 @@
+[project]
+name = "mise"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jeffrey Svajlenko", email = "jeff.svajlenko@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.17.2",
+    "psycopg[binary]>=3.2.0",
+    "pydantic>=2.12.5",
+    "python-dotenv>=1.0.0",
+    "sqlalchemy>=2.0.45",
+]
+
+[project.scripts]
+mise = "mise:main"
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres
+    container_name: mise-postgres
+    environment:
+      POSTGRES_USER: mise_user
+      POSTGRES_PASSWORD: mise_password
+      POSTGRES_DB: mise
+      TZ: America/Toronto
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres/:/var/lib/postgresql
+    restart: unless-stopped
+    networks:
+      - mise-network
+
+networks:
+  mise-network:
+    driver: bridge
