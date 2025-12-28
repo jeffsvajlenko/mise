@@ -93,14 +93,16 @@ mise/
 │   ├── config.py          # Environment configuration loader
 │   ├── db/                # Database layer
 │   │   ├── database.py    # Engine and session setup
-│   │   └── models.py      # ORM models
+│   │   └── models.py      # ORM models (Recipe, IngestionRequest)
 │   ├── schema/            # Pydantic schemas (business domain)
 │   │   └── recipe.py      # Recipe, Ingredient, RecipeStep, Tag
 │   ├── repository/        # Data access layer
 │   │   ├── base.py        # Generic CRUD operations
-│   │   ├── models.py      # RecipeRecord (with metadata)
-│   │   └── recipe.py      # RecipeRepository
-│   └── ingestion/         # Data ingestion
+│   │   ├── recipe.py      # RecipeRepository
+│   │   └── ingestion.py   # IngestionRepository (background jobs)
+│   ├── storage/           # File storage
+│   │   └── files.py       # File management utilities
+│   └── ingestion/         # Data ingestion utilities
 │       └── source_utils.py # Source tracking utilities
 ├── alembic/               # Database migrations
 │   ├── env.py             # Alembic configuration
@@ -111,10 +113,11 @@ mise/
 │   ├── run_prod.sh        # Run commands in prod environment
 │   └── example_*.py       # Usage examples
 ├── docs/                  # Documentation
-│   ├── repository-pattern.md    # Repository pattern guide
-│   ├── source-tracking.md       # Source tracking guide
-│   ├── environment-config.md    # Environment setup guide
-│   └── quick-reference.md       # Quick command reference
+│   ├── repository-pattern.md         # Repository pattern guide
+│   ├── environment-config.md         # Environment setup guide
+│   ├── ingestion-design-v2.md        # Ingestion system design
+│   ├── ingestion-implementation-summary.md  # Implementation details
+│   └── file-storage.md               # File storage guide
 └── data/                  # Data files
 ```
 
@@ -195,9 +198,54 @@ uv run python scripts/example_source_tracking.py
 
 The project uses a JSONB-based schema for flexible recipe storage:
 
-- **recipes** table with JSONB `data` column
+**Recipes Table:**
+- JSONB `data` column for recipe content
+- Source information (`source_type`, `source_url`, `source_files`, `source_metadata`)
+- `source_files`: JSONB array storing file metadata (paths, MIME types, dimensions)
 - Soft delete support via `deleted_at`
-- Source tracking (`source_type`, `source_key`, `source_metadata`) for deduplication
-- Unique constraint on `(source_type, source_key)` for non-deleted recipes
 - GIN indexes for fast JSONB queries
-- B-tree indexes for common fields (title, tags)
+- B-tree indexes for common fields
+
+**Ingestion Requests Table:**
+- Background job queue for processing ingestions
+- Status tracking (pending, processing, completed, failed)
+- Atomic job claiming with row-level locking
+- Retry logic and error tracking
+- Links to created recipes via `recipe_id`
+
+See [docs/ingestion-implementation-summary.md](docs/ingestion-implementation-summary.md) for details.
+
+### File Storage
+
+Files are stored on the filesystem with metadata in the database:
+
+**Development:**
+```
+./data/files/
+  recipes/
+    55/0e/550e8400-.../   # UUID-sharded (65k buckets)
+      original_1.jpg
+      original_2.jpg
+  ingestion-temp/ing_{id}/
+    transcript.srt
+```
+
+**Production:**
+```
+/data/mise/files/
+  recipes/
+    7d/56/7d5690cb-.../
+      original_1.jpg
+  ingestion-temp/ing_{id}/
+    transcript.srt
+```
+
+Files are sharded by UUID prefix (2 levels) for scalability to millions of recipes.
+
+File metadata stored in `source_files` JSONB includes:
+- File path and original filename
+- MIME type and size
+- Image dimensions (if applicable)
+- Upload timestamp
+
+See [docs/file-storage.md](docs/file-storage.md) for usage examples.

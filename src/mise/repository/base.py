@@ -47,9 +47,13 @@ class BaseRepository(Generic[ModelType]):
             limit: Maximum number of records to return
 
         Returns:
-            List of model instances
+            List of model instances ordered by id (ascending)
+
+        Note:
+            Assumes model has an 'id' column. Once TimestampedModel base class
+            is implemented, this will be type-safe.
         """
-        stmt = select(self.model).offset(skip).limit(limit)
+        stmt = select(self.model).order_by(self.model.id).offset(skip).limit(limit)  # type: ignore[attr-defined]
         return list(self.session.scalars(stmt).all())
 
     def create(self, instance: ModelType) -> ModelType:

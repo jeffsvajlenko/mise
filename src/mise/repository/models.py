@@ -11,6 +11,9 @@ class RecipeRecord(BaseModel):
 
     Combines the business domain Recipe with infrastructure fields
     from the database layer (id, timestamps, soft delete).
+
+    Note: Source tracking is in the IngestionRequest table, not here.
+    To find the source of a recipe, query via recipe.ingestions relationship.
     """
     # Database metadata
     id: int = Field(description="Database primary key (auto-generated)")
@@ -20,20 +23,6 @@ class RecipeRecord(BaseModel):
     deleted_at: datetime | None = Field(
         default=None,
         description="Soft delete timestamp (None if not deleted)"
-    )
-
-    # Source tracking for deduplication and provenance
-    source_type: str | None = Field(
-        default=None,
-        description="Source type: 'custom', 'youtube', 'photo', 'webpage'"
-    )
-    source_key: str | None = Field(
-        default=None,
-        description="Unique identifier within source type"
-    )
-    source_metadata: dict | None = Field(
-        default=None,
-        description="Additional source metadata (URLs, timestamps, etc.)"
     )
 
     # Business data

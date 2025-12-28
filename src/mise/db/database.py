@@ -1,6 +1,7 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session
+from datetime import datetime
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import DeclarativeBase, Session, Mapped, mapped_column
 
 # Load environment-specific configuration
 from mise.config import load_env
@@ -23,7 +24,48 @@ engine = create_engine(
 )
 
 class Base(DeclarativeBase):
+    """Base class for all database models."""
     pass
+
+
+class TimestampedModel(Base):
+    """
+    Abstract base model with standard timestamp fields.
+
+    All models inheriting from this will have:
+    - id: Auto-incrementing integer primary key
+    - created_at: Timestamp when record was created
+    - updated_at: Timestamp when record was last updated (auto-updates)
+    - deleted_at: Timestamp for soft delete (NULL if not deleted)
+    """
+    __abstract__ = True
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        autoincrement=True,
+        comment="Integer primary key for database efficiency"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        insert_default=func.now(),
+        comment="Timestamp when record was created"
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        insert_default=func.now(),
+        onupdate=func.now(),
+        comment="Timestamp when record was last updated"
+    )
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        default=None,
+        comment="Timestamp for soft delete (NULL if not deleted)"
+    )
+
+    @property
+    def is_deleted(self) -> bool:
+        """Check if this record is soft-deleted."""
+        return self.deleted_at is not None
 
 def get_session():
     """Get a database session"""

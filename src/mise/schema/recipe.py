@@ -71,7 +71,7 @@ class Tag(BaseModel):
     )
 
     value: str | None = Field(
-        default=None, 
+        default=None,
         description="Optional tag value (e.g., 'italian', 'vegan', 'dinner')"
     )
 
@@ -82,6 +82,40 @@ class Tag(BaseModel):
         if self.value:
             self.value = self.value.lower().strip()
         return self
+
+
+class RecipeFile(BaseModel):
+    """File attached to a recipe (photos, etc.)."""
+
+    id: str = Field(
+        description="File identifier (e.g., 'original_1', 'thumbnail')"
+    )
+    path: str = Field(
+        description="Relative path from storage root"
+    )
+    filename: str = Field(
+        description="Original filename"
+    )
+    content_type: str = Field(
+        description="MIME type (e.g., 'image/jpeg')"
+    )
+    size_bytes: int = Field(
+        ge=0,
+        description="File size in bytes"
+    )
+    width: int | None = Field(
+        default=None,
+        ge=1,
+        description="Image width in pixels (if applicable)"
+    )
+    height: int | None = Field(
+        default=None,
+        ge=1,
+        description="Image height in pixels (if applicable)"
+    )
+    uploaded_at: str = Field(
+        description="ISO 8601 timestamp of upload"
+    )
 
 class Recipe(BaseModel):
     """Schema for recipe responses. Includes database fields."""
@@ -153,6 +187,14 @@ class Recipe(BaseModel):
         description="Recipe author or creator"
     )
     notes: str | None = Field(
-        default=None, 
+        default=None,
         description="Additional notes or user comments"
+    )
+    cuisine: str | None = Field(
+        default=None,
+        description="Cuisine type (e.g., 'Italian', 'Mexican')"
+    )
+    files: list[RecipeFile] = Field(
+        default=[],
+        description="Files attached to this recipe (photos, videos, etc.)"
     )

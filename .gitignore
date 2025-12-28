@@ -17,5 +17,7 @@ wheels/
 # Production secrets - never commit!
 .env.production
 
-# Data directories
+# Data directories - ignore contents but track structure
 data/postgres/
+data/files/recipes/
+data/files/ingestion-temp/

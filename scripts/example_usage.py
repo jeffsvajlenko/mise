@@ -7,7 +7,7 @@ Demonstrates CRUD operations and queries using the repository pattern.
 
 from mise.db.database import engine
 from mise.schema.recipe import Recipe, Ingredient, RecipeStep, Tag
-from mise.repository import RecipeRepository
+from mise.repository.recipe import RecipeRepository
 from sqlalchemy.orm import Session
 
 
