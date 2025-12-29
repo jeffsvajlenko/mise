@@ -9,14 +9,33 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.17.2",
+    "anthropic>=0.75.0",
     "psycopg[binary]>=3.2.0",
     "pydantic>=2.12.5",
     "python-dotenv>=1.0.0",
     "sqlalchemy>=2.0.45",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
+
 [project.scripts]
 mise = "mise:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require database)",
+]
+# Only show output from failed tests
+addopts = "-ra --strict-markers --tb=short"
 
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]

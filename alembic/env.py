@@ -61,8 +61,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Override URL from environment if set
+    configuration = config.get_section(config.config_ini_section, {})
+    if "DATABASE_URL" in os.environ:
+        configuration["sqlalchemy.url"] = os.environ["DATABASE_URL"]
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

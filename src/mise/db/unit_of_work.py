@@ -1,7 +1,6 @@
 """Unit of Work pattern for managing database transactions."""
 from sqlalchemy.orm import Session
 
-from mise.db.database import engine
 from mise.repository.recipe import RecipeRepository
 from mise.repository.ingestion import IngestionRepository
 
@@ -36,6 +35,8 @@ class UnitOfWork:
 
     def __init__(self):
         """Initialize a new unit of work with a fresh database session."""
+        # Import engine here to get the current engine (important for testing)
+        from mise.db.database import engine
         self.session = Session(engine)
 
         # Lazy-loaded repositories
