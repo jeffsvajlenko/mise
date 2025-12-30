@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 mise = "mise:main"
+mise-worker = "mise.worker.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
