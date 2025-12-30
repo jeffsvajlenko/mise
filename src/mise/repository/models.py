@@ -1,7 +1,7 @@
 """Repository layer models that include database metadata."""
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from mise.schema.recipe import Recipe
 
 
@@ -15,6 +15,8 @@ class RecipeRecord(BaseModel):
     Note: Source tracking is in the IngestionRequest table, not here.
     To find the source of a recipe, query via recipe.ingestions relationship.
     """
+    model_config = ConfigDict(from_attributes=True)  # Enable ORM mode for SQLAlchemy
+
     # Database metadata
     id: int = Field(description="Database primary key (auto-generated)")
     uuid: UUID = Field(description="Globally unique business identifier")
@@ -32,7 +34,3 @@ class RecipeRecord(BaseModel):
     def is_deleted(self) -> bool:
         """Check if this record is soft-deleted."""
         return self.deleted_at is not None
-
-    class Config:
-        """Pydantic configuration."""
-        from_attributes = True  # Enable ORM mode for SQLAlchemy

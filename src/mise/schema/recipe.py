@@ -16,7 +16,6 @@ class Ingredient(BaseModel):
     )
     preparation: str | None = Field(
         default=None,
-        min_length=1,
         description="Ingredient preparation for measurement (e.g., chopped for chopped carrots).",
     )
     quantity: float = Field(
@@ -31,7 +30,6 @@ class Ingredient(BaseModel):
     )
     notes: str | None = Field(
         default=None,
-        min_length=1,
         description="Additional free-form notes.",
     )
     optional: bool = Field(
@@ -52,12 +50,10 @@ class RecipeStep(BaseModel):
     )
     time_minutes: int | None = Field(
         default=None,
-        ge=0,
         description="Approximate time in minutes to complete step."
     )
     notes: str | None = Field(
         default=None,
-        min_length=1,
         description="Additional notes or tips"
     )
 
@@ -84,6 +80,22 @@ class Tag(BaseModel):
         return self
 
 
+class ResourceUrl(BaseModel):
+    """External URL resource associated with a recipe."""
+
+    url: HttpUrl = Field(
+        description="The URL of the resource"
+    )
+    description: str | None = Field(
+        default=None,
+        description="Optional description or context for this URL (e.g., 'alternative image', 'nutrition calculator', 'related article')"
+    )
+    resource_type: str | None = Field(
+        default=None,
+        description="Optional type hint (e.g., 'image', 'video', 'article', 'tool')"
+    )
+
+
 class RecipeFile(BaseModel):
     """File attached to a recipe (photos, etc.)."""
 
@@ -105,12 +117,10 @@ class RecipeFile(BaseModel):
     )
     width: int | None = Field(
         default=None,
-        ge=1,
         description="Image width in pixels (if applicable)"
     )
     height: int | None = Field(
         default=None,
-        ge=1,
         description="Image height in pixels (if applicable)"
     )
     uploaded_at: str = Field(
@@ -124,6 +134,53 @@ class Recipe(BaseModel):
         default_factory=lambda: uuid4(),
         description='A unique UUID generated at creation time by default.'
     )
+
+    @model_validator(mode="after")
+    def validate_and_clean(self) -> "Recipe":
+        """Post-validation: convert empty strings to None and validate minimums."""
+        # Convert empty strings to None for optional string fields
+        if self.yield_amount is not None and self.yield_amount.strip() == "":
+            self.yield_amount = None
+        if self.author is not None and self.author.strip() == "":
+            self.author = None
+        if self.notes is not None and self.notes.strip() == "":
+            self.notes = None
+        if self.cuisine is not None and self.cuisine.strip() == "":
+            self.cuisine = None
+        if self.description is not None and self.description.strip() == "":
+            self.description = None
+
+        # Validate minimum values for numeric fields (preserving original constraints)
+        if self.prep_time is not None and self.prep_time < 0:
+            raise ValueError("prep_time must be >= 0")
+        if self.cook_time is not None and self.cook_time < 0:
+            raise ValueError("cook_time must be >= 0")
+        if self.total_time is not None and self.total_time < 0:
+            raise ValueError("total_time must be >= 0")
+        if self.servings is not None and self.servings < 1:
+            raise ValueError("servings must be >= 1")
+
+        # Clean ingredients and steps
+        for ingredient in self.ingredients:
+            if ingredient.preparation is not None and ingredient.preparation.strip() == "":
+                ingredient.preparation = None
+            if ingredient.notes is not None and ingredient.notes.strip() == "":
+                ingredient.notes = None
+
+        for step in self.steps:
+            if step.notes is not None and step.notes.strip() == "":
+                step.notes = None
+            if step.time_minutes is not None and step.time_minutes < 0:
+                raise ValueError(f"Step time_minutes must be >= 0, got {step.time_minutes}")
+
+        # Clean files
+        for file in self.files:
+            if file.width is not None and file.width < 1:
+                raise ValueError(f"File width must be >= 1, got {file.width}")
+            if file.height is not None and file.height < 1:
+                raise ValueError(f"File height must be >= 1, got {file.height}")
+
+        return self
 
     title: str = Field(
         default=..., 
@@ -147,23 +204,19 @@ class Recipe(BaseModel):
         description="Structured tags for categorization and filtering"
     )
     prep_time: int | None = Field(
-        default=None, 
-        ge=0, 
+        default=None,
         description="Prep time in minutes"
     )
     cook_time: int | None = Field(
-        default=None, 
-        ge=0, 
+        default=None,
         description="Cook time in minutes"
     )
     total_time: int | None = Field(
         default=None,
-        ge=0,
         description="Total time in minutes (auto-calculated if not provided)"
     )
     servings: int | None = Field(
         default=None,
-        ge=1,
         description="Number of servings"
     )
     yield_amount: str | None = Field(
@@ -197,4 +250,8 @@ class Recipe(BaseModel):
     files: list[RecipeFile] = Field(
         default=[],
         description="Files attached to this recipe (photos, videos, etc.)"
+    )
+    resource_urls: list[ResourceUrl] = Field(
+        default=[],
+        description="Additional URLs found in the recipe source (alternative images, related articles, tools, etc.)"
     )

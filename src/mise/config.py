@@ -51,3 +51,29 @@ def load_env(verbose: bool = False):
 
 # Load environment on import (silently)
 load_env()
+
+
+# AI Configuration
+def get_anthropic_api_key() -> str:
+    """Get Anthropic API key from environment."""
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "ANTHROPIC_API_KEY not found in environment. "
+            "Please set it in your .env file or environment variables."
+        )
+    return api_key
+
+
+def get_ai_model() -> str:
+    """Get AI model name from environment."""
+    return os.getenv("AI_MODEL", "claude-haiku-4-20250514")
+
+
+def get_ai_max_tokens() -> int:
+    """Get AI max tokens from environment."""
+    max_tokens = os.getenv("AI_MAX_TOKENS", "4096")
+    try:
+        return int(max_tokens)
+    except ValueError:
+        return 4096

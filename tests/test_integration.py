@@ -181,7 +181,8 @@ class TestRecipeIngestionWorkflow:
             ingestion = uow.ingestions.get_by_id(ingestion_id)
             uow.ingestions.mark_failed(
                 ingestion_id,
-                error_message="Connection timeout"
+                error_message="Connection timeout",
+                retry=True
             )
 
         # Verify retry count incremented and status is pending
@@ -194,7 +195,8 @@ class TestRecipeIngestionWorkflow:
         with UnitOfWork() as uow:
             uow.ingestions.mark_failed(
                 ingestion_id,
-                error_message="Connection timeout again"
+                error_message="Connection timeout again",
+                retry=True
             )
 
         # Verify retry count incremented again
@@ -234,7 +236,7 @@ class TestRecipeIngestionWorkflow:
 
         # Get next pending - should be high priority
         with UnitOfWork() as uow:
-            next_request = uow.ingestions.get_next_pending()
+            next_request = uow.ingestions.get_next_pending(worker_id="test-worker")
             assert next_request is not None
             assert next_request.priority == 10
             assert "high" in next_request.source_url
@@ -290,12 +292,12 @@ class TestRecipeOperations:
 
         # Get first page
         with UnitOfWork() as uow:
-            page1 = uow.recipes.get_all_recipes(limit=5, offset=0)
+            page1 = uow.recipes.get_all_recipes(limit=5, skip=0)
             assert len(page1) == 5
 
         # Get second page
         with UnitOfWork() as uow:
-            page2 = uow.recipes.get_all_recipes(limit=5, offset=5)
+            page2 = uow.recipes.get_all_recipes(limit=5, skip=5)
             assert len(page2) == 5
 
         # Verify no overlap
@@ -332,10 +334,9 @@ class TestFileStorage:
         # Save file
         metadata = storage.save_recipe_file(
             recipe_uuid=recipe_uuid,
-            file_id="original",
-            filename="chocolate-cake.jpg",
-            file_obj=image_data,
-            content_type="image/jpeg"
+            file=image_data,
+            original_filename="chocolate-cake.jpg",
+            file_id="original"
         )
 
         assert metadata["id"] == "original"

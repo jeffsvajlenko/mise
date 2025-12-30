@@ -138,7 +138,9 @@ def db_session(test_engine, setup_test_database):
 
     # Cleanup
     session.close()
-    transaction.rollback()
+    # Only rollback if transaction is still active (not already deassociated)
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 
