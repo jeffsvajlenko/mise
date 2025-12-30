@@ -102,7 +102,7 @@ def test_ingest_recipe_text_success(mock_extract, mock_uow):
     assert result.success is True
     assert result.recipe_id is not None
     assert result.recipe_uuid is not None
-    assert result.ingestion_id is not None
+    assert result.ingestion_id is None  # Service doesn't manage ingestion requests
     assert result.error_message is None
     assert result.processing_metadata == mock_processing_metadata
 
@@ -110,62 +110,6 @@ def test_ingest_recipe_text_success(mock_extract, mock_uow):
     recipe_record = mock_uow.recipes.get_recipe_by_id(result.recipe_id)
     assert recipe_record is not None
     assert recipe_record.recipe.title == "Test Recipe"
-
-    # Verify ingestion was completed
-    ingestion = mock_uow.ingestions.get_by_id(result.ingestion_id)
-    assert ingestion is not None
-    assert ingestion.status.value == "completed"
-    assert ingestion.recipe_id == result.recipe_id
-
-
-@pytest.mark.integration
-@patch("mise.ingestion.service.extract_from_text")
-def test_ingest_recipe_duplicate_detection(mock_extract, mock_uow):
-    """Test that duplicate recipes are detected."""
-    # Setup mock extraction
-    mock_recipe = Recipe(
-        title="Test Recipe",
-        ingredients=[
-            Ingredient(
-                text="1 cup flour",
-                name="flour",
-                quantity=1.0,
-                unit="cup"
-            )
-        ],
-        steps=[
-            RecipeStep(instruction="Mix ingredients")
-        ]
-    )
-    mock_source_metadata = {
-        "source_type": "text",
-        "source_key": "text:abc123",
-    }
-    mock_processing_metadata = {
-        "model": "claude-haiku-4-5-20251001",
-        "input_tokens": 100,
-        "output_tokens": 200,
-    }
-    mock_extract.return_value = (mock_recipe, mock_source_metadata, mock_processing_metadata)
-
-    # Create service
-    service = IngestionService()
-
-    # Create input
-    input_data = IngestionInput(
-        source_type="text",
-        text="Test recipe content"
-    )
-
-    # Ingest once
-    result1 = service.ingest_recipe(mock_uow, input_data)
-    assert result1.success is True
-
-    # Try to ingest again - should raise DuplicateRecipeError
-    with pytest.raises(DuplicateRecipeError) as exc_info:
-        service.ingest_recipe(mock_uow, input_data)
-
-    assert exc_info.value.existing_recipe_id == result1.recipe_id
 
 
 @pytest.mark.integration
@@ -191,12 +135,7 @@ def test_ingest_recipe_extraction_failure(mock_extract, mock_uow):
     assert result.recipe_id is None
     assert "AI extraction failed" in result.error_message
     assert result.retryable is False  # Unknown errors are not retryable
-
-    # Verify ingestion was marked as failed
-    ingestion = mock_uow.ingestions.get_by_id(result.ingestion_id)
-    assert ingestion is not None
-    assert ingestion.status.value == "failed"
-    assert ingestion.recipe_id is None
+    assert result.ingestion_id is None  # Service doesn't manage ingestion requests
 
 
 def test_ingestion_result_success():
@@ -234,3 +173,70 @@ def test_ingestion_result_failure():
     assert result.ingestion_id == 456
     assert result.error_message == "Something went wrong"
     assert result.retryable is True
+
+
+@pytest.mark.integration
+@patch("mise.ingestion.service.extract_from_image")
+@patch("mise.ingestion.service.get_default_storage")
+def test_ingest_image_saves_source_file(mock_storage_factory, mock_extract, mock_uow, tmp_path):
+    """Test that image ingestion saves the source file to storage."""
+    from uuid import uuid4
+    from pathlib import Path
+
+    # Create a fake image file
+    image_path = tmp_path / "test_image.jpg"
+    image_path.write_bytes(b"fake image data")
+
+    # Setup mocks
+    recipe_uuid = uuid4()
+    mock_recipe = Recipe(
+        id=recipe_uuid,
+        title="Test Recipe from Image",
+        ingredients=[Ingredient(text="1 cup flour", name="flour", quantity=1.0, unit="cup")],
+        steps=[RecipeStep(instruction="Mix ingredients")]
+    )
+    mock_processing_metadata = {"model": "claude-haiku-4-5-20251001", "input_tokens": 100}
+
+    mock_extract.return_value = (mock_recipe, {}, mock_processing_metadata)
+
+    # Mock storage
+    mock_storage = Mock()
+    mock_storage_factory.return_value = mock_storage
+    mock_storage.save_recipe_file.return_value = {
+        "id": "source_image",
+        "path": f"recipes/{recipe_uuid}/source_image.jpg",
+        "filename": "test_image.jpg",
+        "content_type": "image/jpeg",
+        "size_bytes": 15,
+        "width": 100,
+        "height": 200,
+        "uploaded_at": "2025-12-30T00:00:00Z"
+    }
+
+    # Execute ingestion
+    service = IngestionService()
+    input_data = IngestionInput(source_type="image", image_path=str(image_path))
+    result = service.ingest_recipe(mock_uow, input_data)
+
+    # Verify success
+    assert result.success is True
+    assert result.recipe_id is not None
+
+    # Verify storage was called
+    mock_storage.save_recipe_file.assert_called_once()
+    call_args = mock_storage.save_recipe_file.call_args
+    assert call_args.kwargs["recipe_uuid"] == recipe_uuid
+    assert call_args.kwargs["original_filename"] == "test_image.jpg"
+    assert call_args.kwargs["file_id"] == "source_image"
+
+    # Verify recipe has the file attached
+    recipe_record = mock_uow.recipes.get_recipe_by_id(result.recipe_id)
+    assert len(recipe_record.recipe.files) == 1
+
+    file = recipe_record.recipe.files[0]
+    assert file.id == "source_image"
+    assert file.filename == "test_image.jpg"
+    assert file.content_type == "image/jpeg"
+    assert file.size_bytes == 15
+    assert file.width == 100
+    assert file.height == 200

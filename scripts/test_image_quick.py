@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mise.db.unit_of_work import UnitOfWork
-from mise.ingestion.service import IngestionService
+from mise.ingestion.executor import execute_ingestion_request
 from mise.ingestion.models import IngestionInput
 
 from dotenv import load_dotenv
@@ -31,7 +31,6 @@ def main():
 
     print(f"Ingesting recipe from image: {image_path}")
 
-    service = IngestionService()
     input_data = IngestionInput(
         source_type="image",
         image_path=image_path
@@ -39,7 +38,7 @@ def main():
 
     try:
         with UnitOfWork() as uow:
-            result = service.ingest_recipe(uow, input_data)
+            result = execute_ingestion_request(uow, input_data)
 
         if result.success:
             print(f"\n✓ Success!")

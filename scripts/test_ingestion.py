@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mise.db.unit_of_work import UnitOfWork
-from mise.ingestion.service import IngestionService
+from mise.ingestion.executor import execute_ingestion_request
 from mise.ingestion.models import IngestionInput
 
 
@@ -43,7 +43,6 @@ def test_text_ingestion():
     Makes about 5 dozen cookies.
     """
 
-    service = IngestionService()
     input_data = IngestionInput(
         source_type="text",
         text=recipe_text
@@ -51,7 +50,7 @@ def test_text_ingestion():
 
     try:
         with UnitOfWork() as uow:
-            result = service.ingest_recipe(uow, input_data)
+            result = execute_ingestion_request(uow, input_data)
 
         if result.success:
             print(f"✓ Success! Recipe ID: {result.recipe_id}")
@@ -76,7 +75,6 @@ def test_duplicate_detection():
 
     recipe_text = "Simple recipe: Mix 1 cup flour with 1 egg. Bake at 350°F."
 
-    service = IngestionService()
     input_data = IngestionInput(
         source_type="text",
         text=recipe_text
@@ -85,13 +83,13 @@ def test_duplicate_detection():
     try:
         # First ingestion
         with UnitOfWork() as uow:
-            result1 = service.ingest_recipe(uow, input_data)
+            result1 = execute_ingestion_request(uow, input_data)
         print(f"First ingestion: {'Success' if result1.success else 'Failed'} (ID: {result1.recipe_id})")
 
         # Second ingestion (should be detected as duplicate)
         try:
             with UnitOfWork() as uow:
-                result2 = service.ingest_recipe(uow, input_data)
+                result2 = execute_ingestion_request(uow, input_data)
             print(f"✗ Second ingestion should have been rejected as duplicate!")
         except Exception as e:
             if "already exists" in str(e).lower():

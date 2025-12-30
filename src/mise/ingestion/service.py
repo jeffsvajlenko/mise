@@ -19,7 +19,8 @@ from mise.ingestion.exceptions import (
 )
 from mise.ingestion.models import IngestionInput, IngestionResult
 from mise.ingestion.source_utils import create_source_key, normalize_url
-from mise.schema.recipe import Recipe
+from mise.schema.recipe import Recipe, RecipeFile
+from mise.storage.files import get_default_storage
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,15 @@ class IngestionService:
                 retryable=retryable
             )
 
+        # Save source image file to storage (if applicable)
+        if input_data.source_type == "image" and input_data.image_path:
+            try:
+                self._save_source_image(recipe, input_data.image_path)
+                logger.info(f"Saved source image from {input_data.image_path}")
+            except Exception as e:
+                logger.error(f"Failed to save source image: {e}")
+                # Continue anyway - recipe extraction succeeded, file storage is secondary
+
         # Save recipe to database
         try:
             recipe_record = uow.recipes.create_recipe(recipe)
@@ -118,6 +128,50 @@ class IngestionService:
             ingestion_id=None,  # No ingestion_id - caller manages this
             processing_metadata=processing_metadata
         )
+
+    def _save_source_image(self, recipe: Recipe, image_path: str) -> None:
+        """
+        Save source image file to storage and attach to recipe.
+
+        Args:
+            recipe: Recipe object to attach file to (modified in-place)
+            image_path: Path to source image file
+
+        Raises:
+            FileNotFoundError: If image file doesn't exist
+            Exception: If file storage fails
+        """
+        image_file = Path(image_path)
+        if not image_file.exists():
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+
+        # Get storage instance
+        storage = get_default_storage()
+
+        # Save file to storage
+        with open(image_file, "rb") as f:
+            file_metadata = storage.save_recipe_file(
+                recipe_uuid=recipe.id,
+                file=f,
+                original_filename=image_file.name,
+                file_id="source_image"  # Use consistent ID for source images
+            )
+
+        # Convert FileMetadata to RecipeFile and attach to recipe
+        recipe_file = RecipeFile(
+            id=file_metadata["id"],
+            path=file_metadata["path"],
+            filename=file_metadata["filename"],
+            content_type=file_metadata["content_type"],
+            size_bytes=file_metadata["size_bytes"],
+            width=file_metadata["width"],
+            height=file_metadata["height"],
+            uploaded_at=file_metadata["uploaded_at"]
+        )
+
+        # Add to recipe's files list
+        recipe.files.append(recipe_file)
+        logger.debug(f"Attached file {recipe_file.id} to recipe {recipe.title}")
 
     def _extract_recipe(self, input_data: IngestionInput) -> tuple[Recipe, dict, dict]:
         """
