@@ -273,7 +273,7 @@ IMPORTANT NOTES FOR WEBPAGES:
     # Build source metadata
     source_metadata = {
         "source_type": "webpage",
-        "source_key": create_source_key(SourceType.WEBPAGE, url),
+        "source_key": create_source_key(SourceType.webpage, url),
         "source_url": normalize_url(url),
         "page_title": scraped_data['title'],
     }
@@ -319,7 +319,7 @@ IMPORTANT NOTES:
     # Build source metadata
     source_metadata = {
         "source_type": "webpage" if source_url else "text",
-        "source_key": create_source_key(SourceType.WEBPAGE, source_url) if source_url else None,
+        "source_key": create_source_key(SourceType.webpage, source_url) if source_url else None,
         "source_url": normalize_url(source_url) if source_url else None,
     }
 
@@ -454,7 +454,7 @@ IMPORTANT NOTES FOR VIDEO TRANSCRIPTS:
     # Build source metadata
     source_metadata = {
         "source_type": "youtube",
-        "source_key": create_source_key(SourceType.YOUTUBE, video_id),
+        "source_key": create_source_key(SourceType.youtube, video_id),
         "source_url": canonical_url,
         "video_id": video_id,
     }

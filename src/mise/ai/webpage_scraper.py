@@ -56,7 +56,7 @@ def scrape_webpage(url: str, timeout: int = 10) -> ScrapedContent:
     soup = BeautifulSoup(response.content, 'html.parser')
 
     # Extract title
-    html_title = soup.title.string if soup.title else ""
+    html_title: str = soup.title.string if soup.title and soup.title.string else ""
 
     # Remove elements that are definitely not recipe content
     # Be conservative - only remove obvious noise
@@ -167,6 +167,8 @@ def extract_recipe_metadata(soup: BeautifulSoup) -> dict:
     for script in json_ld_scripts:
         try:
             import json
+            if not script.string:
+                continue
             data = json.loads(script.string)
 
             # Handle both single objects and arrays

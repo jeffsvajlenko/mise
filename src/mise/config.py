@@ -41,10 +41,10 @@ def load_env(verbose: bool = False):
         if fallback_file.exists():
             load_dotenv(fallback_file)
             if verbose:
-                print(f"Loaded configuration from .env")
+                print("Loaded configuration from .env")
         else:
             if verbose:
-                print(f"No .env file found, using environment variables and defaults")
+                print("No .env file found, using environment variables and defaults")
 
     _env_loaded = True
 

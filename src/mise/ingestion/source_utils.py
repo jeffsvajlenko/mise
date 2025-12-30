@@ -1,15 +1,8 @@
 """Utilities for handling recipe source tracking."""
-from enum import Enum
 from urllib.parse import urlparse, urlunparse
 import re
 
-
-class SourceType(str, Enum):
-    """Supported source types for recipes."""
-    CUSTOM = "custom"
-    YOUTUBE = "youtube"
-    WEBPAGE = "webpage"
-    PHOTO = "photo"
+from mise.db.models import SourceType
 
 
 def normalize_url(url: str) -> str:
@@ -91,20 +84,20 @@ def create_source_key(source_type: SourceType, identifier: str) -> str:
     Returns:
         Normalized source key
     """
-    if source_type == SourceType.YOUTUBE:
+    if source_type == SourceType.youtube:
         # For YouTube, try to extract video ID
         video_id = extract_youtube_video_id(identifier)
         return video_id if video_id else identifier
 
-    elif source_type == SourceType.WEBPAGE:
+    elif source_type == SourceType.webpage:
         # For webpages, normalize the URL
         return normalize_url(identifier)
 
-    elif source_type == SourceType.PHOTO:
+    elif source_type == SourceType.photo:
         # For photos, assume identifier is already a hash
         return identifier.lower()
 
-    elif source_type == SourceType.CUSTOM:
+    elif source_type == SourceType.custom:
         # For custom, just return as-is (likely a UUID)
         return identifier
 
