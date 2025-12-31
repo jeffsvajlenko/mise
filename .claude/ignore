@@ -1,0 +1,46 @@
+# Files/directories to ignore in Claude Code context
+# This reduces token usage by excluding unnecessary files
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# Backup branches
+backup-*/
+
+# Docker
+.dockerignore
+
+# Large data files (if any)
+data/
+*.csv
+*.json.gz
