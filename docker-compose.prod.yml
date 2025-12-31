@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mise-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mise_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mise_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mise}
+      TZ: ${TZ:-America/Toronto}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mise_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mise-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mise-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://mise_user:mise_password@postgres:5432/mise}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - API_KEYS=${API_KEYS}
+      - FILE_STORAGE_PATH=/data/files
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SQLALCHEMY_ECHO=${SQLALCHEMY_ECHO:-False}
+    volumes:
+      - ./data/files:/data/files
+      - ./logs/api:/var/log/mise
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mise-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mise-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://mise_user:mise_password@postgres:5432/mise}
+      - FILE_STORAGE_PATH=/data/files
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SQLALCHEMY_ECHO=${SQLALCHEMY_ECHO:-False}
+      - WORKER_ID=${WORKER_ID:-worker-1}
+      - WORKER_POLL_INTERVAL=${WORKER_POLL_INTERVAL:-5}
+    volumes:
+      - ./data/files:/data/files
+      - ./logs/worker:/var/log/mise
+    command: python -m mise.worker.processor --mode continuous
+    networks:
+      - mise-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: mise-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/www:/var/www/certbot:ro
+      - ./logs/nginx:/var/log/nginx
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    networks:
+      - mise-network
+
+networks:
+  mise-network:
+    driver: bridge

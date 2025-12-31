@@ -259,13 +259,23 @@ def api_client(setup_test_database):
 
     Uses TestClient for synchronous testing of API endpoints.
     Automatically uses the test database via setup_test_environment.
+    Disables API key authentication for testing (development mode).
     """
     from fastapi.testclient import TestClient
     from mise.api.main import create_app
 
+    # Clear API_KEYS to disable authentication during tests
+    original_api_keys = os.environ.get("API_KEYS")
+    if "API_KEYS" in os.environ:
+        del os.environ["API_KEYS"]
+
     app = create_app()
     with TestClient(app) as client:
         yield client
+
+    # Restore original API_KEYS
+    if original_api_keys is not None:
+        os.environ["API_KEYS"] = original_api_keys
 
 
 @pytest.fixture
