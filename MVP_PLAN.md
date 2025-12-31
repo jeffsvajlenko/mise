@@ -6,47 +6,41 @@
 - **Layer 5: AI Extraction** - Claude-based recipe extraction from text, images, YouTube, webpages
 - **Layer 4: Ingestion Service** - Recipe extraction, validation, storage (including image files)
 - **Layer 3: Ingestion Executor** - IngestionRequest lifecycle management, duplicate detection
+- **Layer 2: Worker Process** - Background worker with job processing, graceful shutdown, orphaned job recovery
+- **Layer 1: FastAPI Application** - RESTful API with 7 endpoints for ingestion and recipe management
 - **Database Schema** - Recipes, IngestionRequests, full migration system
 - **Repository Layer** - RecipeRepository, IngestionRepository with CRUD operations
 - **Unit of Work Pattern** - Transaction management
 - **File Storage** - Image storage with metadata
+- **Worker CLI** - Command-line interface with logging configuration
+- **Worker Testing** - Integration tests and manual test script
+- **API CLI** - Command-line interface for starting API server
 
-### 🚧 Remaining for MVP
-
-#### 1. **Layer 2: Worker Process** (Priority: HIGH)
-Background worker that processes ingestion requests from the queue.
-
-**Files to create:**
-- `src/mise/worker/processor.py` - Main worker loop
-- `src/mise/worker/config.py` - Worker configuration (polling interval, concurrency)
-- `src/mise/worker/__init__.py` - Worker exports
-
-**Key features:**
-- Poll `ingestion_requests` table for pending jobs
-- Use `IngestionRepository.get_next_pending()` for atomic job claiming
-- Call `execute_ingestion_request()` for each job
-- Handle graceful shutdown (SIGTERM, SIGINT)
+**Worker Implementation:**
+- Files: `src/mise/worker/processor.py`, `config.py`, `cli.py`, `__main__.py`
+- Atomic job claiming with row-level locking
+- Transaction commits after job processing
+- Graceful shutdown (SIGTERM, SIGINT)
+- Orphaned job recovery on startup
 - Configurable polling interval (default: 5 seconds)
-- Error handling and retry logic
-- Optional: Worker heartbeat/status tracking
+- Worker modes: continuous and single-job
+- Clean logging with SQLAlchemy silencing
+- Command: `uv run python -m mise.worker.processor`
+- Manual testing: `uv run python scripts/test_worker.py`
+- All tests passing (121/121)
 
-**Worker modes:**
-1. **Continuous mode** - Long-running process that polls continuously
-2. **Single-job mode** - Process one job and exit (for testing/cron)
+**API Implementation:**
+- Files: `src/mise/api/main.py`, `cli.py`, `dependencies.py`, `routes/*.py`
+- 7 endpoints: health, ingestions (POST/GET/LIST), recipes (GET/LIST), files (GET)
+- CORS middleware configured
+- Automatic OpenAPI documentation at `/docs`
+- Command: `uv run mise-api`
+- Manual testing: `uv run python scripts/test_api.py`
+- Documentation: `docs/api.md`
 
-**Management:**
-- Start: `uv run mise-worker` (CLI command)
-- Stop: Send SIGTERM signal
-- Status: Check worker_id and processing_started_at in DB
+### 🚧 Remaining for MVP (Optional Enhancements)
 
-**Testing:**
-- Unit tests with mocked repository
-- Integration tests with actual database
-- Manual test script to enqueue and process jobs
-
----
-
-#### 2. **Layer 1: FastAPI Application** (Priority: HIGH)
+#### 1. **Additional API Endpoints** (Priority: LOW)
 
 RESTful API for recipe management and ingestion.
 
@@ -117,7 +111,7 @@ RESTful API for recipe management and ingestion.
 
 ---
 
-#### 3. **CLI Commands** (Priority: MEDIUM)
+#### 2. **CLI Commands** (Priority: MEDIUM)
 
 Command-line interface for management tasks.
 
@@ -150,7 +144,7 @@ mise-ingest = "mise.cli:ingest_command"
 
 ---
 
-#### 4. **Configuration Management** (Priority: MEDIUM)
+#### 3. **Configuration Management** (Priority: MEDIUM)
 
 Centralized configuration for all components.
 
@@ -193,7 +187,7 @@ LOG_FORMAT=json
 
 ---
 
-#### 5. **Docker Setup** (Priority: LOW - Post MVP)
+#### 4. **Docker Setup** (Priority: LOW - Post MVP)
 
 Containerization for easy deployment.
 
@@ -212,15 +206,15 @@ Containerization for easy deployment.
 
 ## Implementation Order
 
-### Phase 1: Worker Process (Days 1-2)
-1. Create worker module structure
-2. Implement worker loop with job claiming
-3. Add graceful shutdown handling
-4. Write worker tests
-5. Create CLI command for worker
-6. Manual testing with test scripts
+### ✅ Phase 1: Worker Process (COMPLETED)
+1. ✅ Create worker module structure
+2. ✅ Implement worker loop with job claiming
+3. ✅ Add graceful shutdown handling
+4. ✅ Write worker tests
+5. ✅ Create CLI command for worker
+6. ✅ Manual testing with test scripts
 
-### Phase 2: FastAPI Application (Days 3-5)
+### Phase 2: FastAPI Application (NEXT)
 1. Setup FastAPI app structure
 2. Implement recipe endpoints (GET, LIST, UPDATE, DELETE)
 3. Implement ingestion endpoints (CREATE, LIST, GET)
@@ -229,7 +223,7 @@ Containerization for easy deployment.
 6. Write API tests
 7. Create CLI command for API server
 
-### Phase 3: Integration & Polish (Day 6)
+### Phase 3: Integration & Polish
 1. End-to-end testing (API → Worker → Database)
 2. Update documentation
 3. Create example scripts
@@ -259,12 +253,12 @@ Containerization for easy deployment.
 
 ## Success Criteria
 
-### Worker
-- [ ] Can claim and process pending ingestion requests
-- [ ] Handles concurrent workers (no duplicate processing)
-- [ ] Graceful shutdown without losing jobs
-- [ ] Retry failed jobs according to configuration
-- [ ] Logs processing activity clearly
+### Worker ✅ COMPLETED
+- [x] Can claim and process pending ingestion requests
+- [x] Handles concurrent workers (no duplicate processing)
+- [x] Graceful shutdown without losing jobs
+- [x] Retry failed jobs according to configuration
+- [x] Logs processing activity clearly
 
 ### API
 - [ ] Can create ingestion requests for all source types

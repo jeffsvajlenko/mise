@@ -11,13 +11,16 @@ dependencies = [
     "alembic>=1.17.2",
     "anthropic>=0.75.0",
     "beautifulsoup4>=4.12.0",
+    "fastapi>=0.109.0",
     "markdownify>=0.11.0",
     "pillow>=10.1.0",
     "psycopg[binary]>=3.2.0",
     "pydantic>=2.12.5",
     "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
     "requests>=2.31.0",
     "sqlalchemy>=2.0.45",
+    "uvicorn[standard]>=0.27.0",
     "youtube-transcript-api>=0.6.0",
 ]
 
@@ -30,6 +33,7 @@ dev = [
 [project.scripts]
 mise = "mise:main"
 mise-worker = "mise.worker.cli:main"
+mise-api = "mise.api.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
