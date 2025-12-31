@@ -337,3 +337,33 @@ class IngestionRepository(BaseRepository[IngestionRequest]):
             stmt = stmt.where(IngestionRequest.completed_at >= since)
 
         return list(self.session.scalars(stmt).all())
+
+    def reset_orphaned_jobs(self) -> int:
+        """
+        Reset all jobs in 'processing' status to 'pending'.
+
+        This is used on worker startup in single-worker mode to recover
+        jobs from a crashed previous worker instance. Since we assume only
+        one worker, any job in 'processing' status must be orphaned.
+
+        Returns:
+            Number of jobs reset
+
+        Example:
+            >>> repo = IngestionRepository(session)
+            >>> reset_count = repo.reset_orphaned_jobs()
+            >>> print(f"Reset {reset_count} orphaned jobs")
+        """
+        stmt = (
+            select(IngestionRequest)
+            .where(IngestionRequest.status == IngestionStatus.processing)
+        )
+
+        orphaned_jobs = list(self.session.scalars(stmt).all())
+
+        for job in orphaned_jobs:
+            job.status = IngestionStatus.pending
+            job.worker_id = None
+            job.processing_started_at = None
+
+        return len(orphaned_jobs)

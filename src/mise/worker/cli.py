@@ -2,9 +2,27 @@
 
 import logging
 import sys
+import os
+
+# Disable SQLAlchemy echo BEFORE any imports that might use the database
+os.environ.setdefault('SQLALCHEMY_ECHO', 'False')
+
+# Silence SQLAlchemy logging BEFORE loading environment
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.orm').setLevel(logging.WARNING)
+
+# Load environment variables
+from mise.config import load_env
+load_env()
 
 from mise.worker.config import WorkerConfig
 from mise.worker.processor import WorkerProcessor
+
+# Force disable SQLAlchemy echo on the already-created engine
+import mise.db.database
+mise.db.database.engine.echo = False
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -19,6 +37,12 @@ def setup_logging(level: str = "INFO") -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # Ensure SQLAlchemy logs stay silenced
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
+    logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
+    logging.getLogger('sqlalchemy.orm').setLevel(logging.WARNING)
 
 
 def main() -> None:

@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 def execute_ingestion_request(
     uow: UnitOfWork,
-    input_data: IngestionInput
+    input_data: IngestionInput,
+    ingestion_id: int | None = None
 ) -> IngestionResult:
     """
     Execute an ingestion request with full lifecycle management.
@@ -28,13 +29,14 @@ def execute_ingestion_request(
     - Updates request status based on results
 
     Used by:
-    - Worker process (Layer 2) to execute pending requests
-    - API endpoints (Layer 1) for immediate execution
+    - Worker process (Layer 2) to execute pending requests (with ingestion_id)
+    - API endpoints (Layer 1) for immediate execution (without ingestion_id)
     - Test scripts for manual ingestion
 
     Args:
         uow: Unit of Work (must be in active transaction context)
         input_data: Input specification with source type and data
+        ingestion_id: Optional ID of existing IngestionRequest (for worker use case)
 
     Returns:
         IngestionResult: Success or failure with ingestion_id populated
@@ -76,31 +78,41 @@ def execute_ingestion_request(
         source_url = None
         normalized_url = None
 
-    # 2. Check for duplicates (completed ingestions only)
-    existing = uow.ingestions.find_by_source_key(source_key)
-    if existing and existing.recipe_id:
-        logger.info(f"Duplicate recipe from source: {source_key}")
-        raise DuplicateRecipeError(
-            f"Recipe already exists from this source: {source_key}",
-            existing_recipe_id=existing.recipe_id
+    # 2. If ingestion_id provided (worker use case), use existing request
+    #    Otherwise, check for duplicates and create new request (API use case)
+    if ingestion_id is not None:
+        # Worker use case: use existing request
+        ingestion_request = uow.ingestions.get_by_id(ingestion_id)
+        if not ingestion_request:
+            raise ValueError(f"IngestionRequest {ingestion_id} not found")
+        logger.info(f"Using existing ingestion request {ingestion_id} for {source_key}")
+    else:
+        # API use case: check for duplicates and create new request
+        existing = uow.ingestions.find_by_source_key(source_key)
+        if existing and existing.recipe_id:
+            logger.info(f"Duplicate recipe from source: {source_key}")
+            raise DuplicateRecipeError(
+                f"Recipe already exists from this source: {source_key}",
+                existing_recipe_id=existing.recipe_id
+            )
+
+        # Create IngestionRequest (pending status)
+        ingestion_request = uow.ingestions.create_request(
+            source_type=source_type,
+            source_key=source_key,
+            source_url=normalized_url,
+            request_params=input_data.metadata or {},
         )
+        uow.session.flush()  # Get the ID without committing
+        ingestion_id = ingestion_request.id
+        logger.info(f"Created ingestion request {ingestion_id} for {source_key}")
 
-    # 3. Create IngestionRequest (pending status)
-    ingestion_request = uow.ingestions.create_request(
-        source_type=source_type,
-        source_key=source_key,
-        source_url=normalized_url,
-        request_params=input_data.metadata or {},
-    )
-    uow.session.flush()  # Get the ID without committing
-    ingestion_id = ingestion_request.id
-    logger.info(f"Created ingestion request {ingestion_id} for {source_key}")
-
-    # 4. Update to processing status
-    uow.ingestions.update_status(
-        ingestion_id,
-        IngestionStatus.processing
-    )
+    # 3. Update to processing status (if not already)
+    if ingestion_request.status != IngestionStatus.processing:
+        uow.ingestions.update_status(
+            ingestion_id,
+            IngestionStatus.processing
+        )
 
     # 5. Execute the ingestion service (Layer 4)
     service = IngestionService()

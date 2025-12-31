@@ -49,8 +49,12 @@ class WorkerProcessor:
         if mode not in ("continuous", "single"):
             raise ValueError(f"Invalid mode: {mode}. Must be 'continuous' or 'single'")
 
-        logger.info(f"Starting worker {self.config.worker_id} in {mode} mode")
+        logger.info(f"=== Starting worker {self.config.worker_id} in {mode} mode ===")
+        logger.info(f"Configuration: poll_interval={self.config.poll_interval}s, poll_interval_busy={self.config.poll_interval_busy}s")
         self.running = True
+
+        # Reset orphaned jobs from crashed previous worker instance
+        self._reset_orphaned_jobs()
 
         # Setup signal handlers for graceful shutdown
         if mode == "continuous":
@@ -68,11 +72,32 @@ class WorkerProcessor:
             logger.error(f"Worker crashed: {e}", exc_info=True)
             raise
         finally:
-            logger.info(f"Worker {self.config.worker_id} stopped")
+            logger.info(f"=== Worker {self.config.worker_id} stopped ===")
+
+    def _reset_orphaned_jobs(self) -> None:
+        """Reset orphaned jobs from crashed previous worker instance."""
+        try:
+            with UnitOfWork() as uow:
+                reset_count = uow.ingestions.reset_orphaned_jobs()
+                uow.session.commit()
+
+                if reset_count > 0:
+                    logger.warning(
+                        f"Reset {reset_count} orphaned job(s) from crashed worker instance "
+                        f"(status: processing → pending)"
+                    )
+                else:
+                    logger.info("No orphaned jobs found")
+        except Exception as e:
+            logger.error(f"Failed to reset orphaned jobs: {e}", exc_info=True)
+            # Continue anyway - this is not fatal
 
     def _run_continuous(self) -> None:
         """Run worker in continuous mode (poll indefinitely)."""
         consecutive_empty_polls = 0
+        jobs_processed = 0
+
+        logger.info("Starting continuous polling loop")
 
         while self.running:
             processed = self._process_next_job()
@@ -80,13 +105,16 @@ class WorkerProcessor:
             if processed:
                 # Reset counter and use busy interval
                 consecutive_empty_polls = 0
+                jobs_processed += 1
                 time.sleep(self.config.poll_interval_busy)
             else:
                 # Increment counter and use idle interval
                 consecutive_empty_polls += 1
                 if consecutive_empty_polls == 1:
-                    logger.debug("Queue empty, entering idle mode")
+                    logger.info(f"Queue empty (processed {jobs_processed} jobs), entering idle mode")
                 time.sleep(self.config.poll_interval)
+
+        logger.info(f"Polling loop ended (processed {jobs_processed} total jobs)")
 
     def _run_single(self) -> None:
         """Run worker in single-job mode (process one job and exit)."""
@@ -118,36 +146,65 @@ class WorkerProcessor:
 
                 self.current_job_id = job.id
                 logger.info(
-                    f"Processing job {job.id}: {job.source_type.value} from {job.source_key}"
+                    f"[Job {job.id}] Processing {job.source_type.value} from source_key={job.source_key}"
                 )
 
                 # Convert IngestionRequest to IngestionInput
-                input_data = self._job_to_input(job)
-
-                # Execute the ingestion
+                start_time = time.time()
                 try:
-                    result = execute_ingestion_request(uow, input_data)
-                    logger.info(
-                        f"Job {job.id} completed: "
-                        f"recipe_id={result.recipe_id}, success={result.success}"
-                    )
+                    input_data = self._job_to_input(job)
+                except ValueError as e:
+                    logger.error(f"[Job {job.id}] Invalid job data: {e}")
+                    # Job has invalid data, can't process
+                    return True
+
+                # Execute the ingestion (passing job ID to update existing request)
+                try:
+                    result = execute_ingestion_request(uow, input_data, ingestion_id=job.id)
+                    elapsed = time.time() - start_time
+
+                    if result.success:
+                        logger.info(
+                            f"[Job {job.id}] ✓ SUCCESS - Created recipe_id={result.recipe_id} "
+                            f"in {elapsed:.1f}s"
+                        )
+                        if result.processing_metadata:
+                            tokens = result.processing_metadata.get('total_tokens', 0)
+                            model = result.processing_metadata.get('model', 'unknown')
+                            logger.info(f"[Job {job.id}]   AI: {model}, {tokens} tokens")
+                    else:
+                        logger.warning(
+                            f"[Job {job.id}] ✗ FAILED - {result.error_message} "
+                            f"(retryable={result.retryable}) after {elapsed:.1f}s"
+                        )
+
+                    # Commit the transaction to persist status updates
+                    uow.session.commit()
                     return True
 
                 except DuplicateRecipeError as e:
-                    # Duplicate detected - mark as failed (not retryable)
-                    logger.warning(f"Job {job.id} duplicate: {e}")
-                    # The executor already handled this, just log it
+                    elapsed = time.time() - start_time
+                    logger.warning(
+                        f"[Job {job.id}] ⊘ DUPLICATE - {e} (detected in {elapsed:.1f}s)"
+                    )
+                    uow.session.commit()
                     return True
 
                 except ValidationError as e:
-                    # Invalid input - mark as failed (not retryable)
-                    logger.error(f"Job {job.id} validation error: {e}")
-                    # The executor already handled this, just log it
+                    elapsed = time.time() - start_time
+                    logger.error(
+                        f"[Job {job.id}] ✗ VALIDATION ERROR - {e} (failed in {elapsed:.1f}s)"
+                    )
+                    uow.session.commit()
                     return True
 
                 except Exception as e:
-                    # Unexpected error - already handled by executor
-                    logger.error(f"Job {job.id} failed: {e}", exc_info=True)
+                    elapsed = time.time() - start_time
+                    logger.error(
+                        f"[Job {job.id}] ✗ UNEXPECTED ERROR - {e} (failed in {elapsed:.1f}s)",
+                        exc_info=True
+                    )
+                    uow.session.commit()
                     return True
 
         except Exception as e:

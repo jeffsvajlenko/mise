@@ -14,8 +14,8 @@ DATABASE_URL = os.getenv(
     "postgresql+psycopg://mise_user:mise_password@localhost:5432/mise"
 )
 
-# Get echo setting from environment
-SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "True").lower() in ("true", "1", "yes")
+# Get echo setting from environment (disabled by default for cleaner logs)
+SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "False").lower() in ("true", "1", "yes")
 
 engine = create_engine(
     DATABASE_URL,
