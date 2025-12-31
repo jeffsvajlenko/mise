@@ -1071,7 +1071,10 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "jupyterlab" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [package.metadata]
@@ -1096,7 +1099,12 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "jupyterlab", specifier = ">=4.5.1" }]
+dev = [
+    { name = "httpx", specifier = ">=0.25.0" },
+    { name = "jupyterlab", specifier = ">=4.5.1" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+]
 
 [[package]]
 name = "mistune"

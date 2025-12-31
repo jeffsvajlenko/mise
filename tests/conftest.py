@@ -252,6 +252,48 @@ def sample_recipe_db_model(sample_recipe):
     )
 
 
+@pytest.fixture
+def api_client(setup_test_database):
+    """
+    Provide a FastAPI test client.
+
+    Uses TestClient for synchronous testing of API endpoints.
+    Automatically uses the test database via setup_test_environment.
+    """
+    from fastapi.testclient import TestClient
+    from mise.api.main import create_app
+
+    app = create_app()
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def sample_ingestion_payload():
+    """
+    Provide a sample text ingestion request payload.
+
+    Returns a dict suitable for POST /api/ingestions.
+    """
+    return {
+        "source_type": "text",
+        "text": """
+        Test Recipe
+
+        Ingredients:
+        - 2 cups flour
+        - 1 cup water
+
+        Instructions:
+        1. Mix flour and water
+        2. Bake at 350°F for 20 minutes
+
+        Makes 4 servings
+        """,
+        "metadata": {"test": True}
+    }
+
+
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest with custom markers."""

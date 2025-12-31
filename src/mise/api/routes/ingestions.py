@@ -35,7 +35,6 @@ class IngestionResponse(BaseModel):
     created_at: str
     updated_at: str
     processing_started_at: str | None
-    processing_completed_at: str | None
     worker_id: str | None
     retry_count: int
     max_retries: int
@@ -132,9 +131,6 @@ def create_ingestion(
         processing_started_at=ingestion.processing_started_at.isoformat()
         if ingestion.processing_started_at
         else None,
-        processing_completed_at=ingestion.processing_completed_at.isoformat()
-        if ingestion.processing_completed_at
-        else None,
         worker_id=ingestion.worker_id,
         retry_count=ingestion.retry_count,
         max_retries=ingestion.max_retries,
@@ -167,9 +163,6 @@ def get_ingestion(ingestion_id: int, uow: UnitOfWork = Depends(get_uow)) -> Inge
         updated_at=ingestion.updated_at.isoformat(),
         processing_started_at=ingestion.processing_started_at.isoformat()
         if ingestion.processing_started_at
-        else None,
-        processing_completed_at=ingestion.processing_completed_at.isoformat()
-        if ingestion.processing_completed_at
         else None,
         worker_id=ingestion.worker_id,
         retry_count=ingestion.retry_count,
@@ -239,9 +232,6 @@ def list_ingestions(
                 updated_at=ingestion.updated_at.isoformat(),
                 processing_started_at=ingestion.processing_started_at.isoformat()
                 if ingestion.processing_started_at
-                else None,
-                processing_completed_at=ingestion.processing_completed_at.isoformat()
-                if ingestion.processing_completed_at
                 else None,
                 worker_id=ingestion.worker_id,
                 retry_count=ingestion.retry_count,

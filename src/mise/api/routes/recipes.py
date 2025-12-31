@@ -34,7 +34,7 @@ def get_recipe(recipe_uuid: UUID, uow: UnitOfWork = Depends(get_uow)) -> Recipe:
     Raises:
         HTTPException: 404 if recipe not found
     """
-    record = uow.recipes.get_recipe_by_uuid(recipe_uuid)
+    record = uow.recipes.get_by_uuid(recipe_uuid)
 
     if not record:
         raise HTTPException(status_code=404, detail="Recipe not found")
@@ -62,7 +62,7 @@ def list_recipes(
     """
     if search:
         # Search by title
-        records = uow.recipes.search_by_title(search, limit=limit, offset=skip)
+        records = uow.recipes.search_by_title(search, skip=skip, limit=limit)
         # TODO: Implement proper count for search results
         total = len(records)
     else:
@@ -75,7 +75,7 @@ def list_recipes(
         query = query.offset(skip).limit(limit)
 
         db_recipes = list(uow.session.execute(query).scalars())
-        records = [uow.recipes._db_to_record(r) for r in db_recipes]
+        records = [uow.recipes._to_record(r) for r in db_recipes]
 
         # Count total
         total = uow.session.execute(
