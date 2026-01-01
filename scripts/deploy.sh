@@ -55,17 +55,8 @@ echo "Building Docker images..."
 $DOCKER_COMPOSE build --no-cache api worker
 echo ""
 
-echo "Starting database and waiting for it to be healthy..."
-$DOCKER_COMPOSE up -d --wait postgres
-echo "Database is ready!"
-echo ""
-
-echo "Running database migrations..."
-$DOCKER_COMPOSE run --rm api uv run alembic upgrade head
-echo ""
-
-echo "Starting all services..."
-$DOCKER_COMPOSE up -d
+echo "Starting all services (migrations run automatically on API startup)..."
+$DOCKER_COMPOSE up -d --wait
 echo ""
 
 echo "Waiting for services to be healthy..."
