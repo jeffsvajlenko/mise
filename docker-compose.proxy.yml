@@ -1,0 +1,100 @@
+version: '3.8'
+
+# Mise production deployment with external reverse proxy
+# Use this instead of docker-compose.prod.yml if using Traefik or Nginx Proxy Manager
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mise-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mise_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mise_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mise}
+      TZ: ${TZ:-America/Toronto}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mise_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mise-internal
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mise-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://mise_user:mise_password@postgres:5432/mise}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - API_KEYS=${API_KEYS}
+      - FILE_STORAGE_PATH=/data/files
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SQLALCHEMY_ECHO=${SQLALCHEMY_ECHO:-False}
+    volumes:
+      - ./data/files:/data/files
+      - ./logs/api:/var/log/mise
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mise-internal
+      - proxy
+    labels:
+      # Traefik labels (ignore these if using Nginx Proxy Manager)
+      - "traefik.enable=true"
+      - "traefik.http.routers.mise.rule=Host(`${MISE_DOMAIN:-mise.elidibus.com}`)"
+      - "traefik.http.routers.mise.entrypoints=websecure"
+      - "traefik.http.routers.mise.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mise.loadbalancer.server.port=8000"
+      # Rate limiting
+      - "traefik.http.middlewares.mise-ratelimit.ratelimit.average=10"
+      - "traefik.http.middlewares.mise-ratelimit.ratelimit.burst=20"
+      - "traefik.http.routers.mise.middlewares=mise-ratelimit"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mise-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://mise_user:mise_password@postgres:5432/mise}
+      - FILE_STORAGE_PATH=/data/files
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SQLALCHEMY_ECHO=${SQLALCHEMY_ECHO:-False}
+      - WORKER_ID=${WORKER_ID:-worker-1}
+      - WORKER_POLL_INTERVAL=${WORKER_POLL_INTERVAL:-5}
+    volumes:
+      - ./data/files:/data/files
+      - ./logs/worker:/var/log/mise
+    command: python -m mise.worker.processor --mode continuous
+    networks:
+      - mise-internal
+
+networks:
+  mise-internal:
+    driver: bridge
+  proxy:
+    external: true
+    name: proxy
