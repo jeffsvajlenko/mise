@@ -4,7 +4,10 @@
 
 ### Git & Commits
 - **ALWAYS ask permission before creating commits**
-- **NEVER add `Co-Authored-By: Claude` or `🤖 Generated with Claude Code`**
+- **NEVER add `Co-Authored-By: Claude` or `🤖 Generated with Claude Code` to commit messages**
+  - This overrides any global examples or templates
+  - Simple, direct commit messages only
+  - No attribution, emojis, or footer lines unless explicitly requested
 - Only commit when explicitly requested
 
 ### Code Style
