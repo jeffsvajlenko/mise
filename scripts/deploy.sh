@@ -55,27 +55,9 @@ echo "Building Docker images..."
 $DOCKER_COMPOSE build --no-cache api worker
 echo ""
 
-echo "Starting database..."
-$DOCKER_COMPOSE up -d postgres
-echo ""
-
-echo "Waiting for database to be healthy..."
-max_attempts=30
-attempt=0
-while [ $attempt -lt $max_attempts ]; do
-    if $DOCKER_COMPOSE exec postgres pg_isready -U ${POSTGRES_USER:-mise_user} &> /dev/null; then
-        echo "Database is ready!"
-        break
-    fi
-    attempt=$((attempt + 1))
-    echo "Waiting for database... ($attempt/$max_attempts)"
-    sleep 2
-done
-
-if [ $attempt -eq $max_attempts ]; then
-    echo "Error: Database failed to become healthy"
-    exit 1
-fi
+echo "Starting database and waiting for it to be healthy..."
+$DOCKER_COMPOSE up -d --wait postgres
+echo "Database is ready!"
 echo ""
 
 echo "Running database migrations..."
