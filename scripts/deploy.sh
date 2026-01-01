@@ -35,9 +35,15 @@ echo ""
 echo "Updated to commit: $(git rev-parse --short HEAD)"
 echo ""
 
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    echo "Error: docker-compose not found!"
+# Check if docker compose or docker-compose is available
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+    echo "Using docker compose (plugin)"
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+    echo "Using docker-compose (standalone)"
+else
+    echo "Error: Neither 'docker compose' nor 'docker-compose' found!"
     exit 1
 fi
 
@@ -46,22 +52,22 @@ fi
 export COMPOSE_FILE="docker-compose.proxy.yml"
 
 echo "Building Docker images..."
-docker-compose build --no-cache api worker
+$DOCKER_COMPOSE build --no-cache api worker
 echo ""
 
 echo "Running database migrations..."
-docker-compose run --rm api uv run alembic upgrade head
+$DOCKER_COMPOSE run --rm api uv run alembic upgrade head
 echo ""
 
 echo "Restarting services..."
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 echo ""
 
 echo "Waiting for services to be healthy..."
 sleep 5
 
 # Check service status
-docker-compose ps
+$DOCKER_COMPOSE ps
 echo ""
 
 # Check API health
@@ -89,9 +95,9 @@ echo "Deployment complete!"
 echo "========================================="
 echo ""
 echo "Useful commands:"
-echo "  View logs:        docker-compose logs -f"
-echo "  View API logs:    docker-compose logs -f api"
-echo "  View worker logs: docker-compose logs -f worker"
-echo "  Check status:     docker-compose ps"
-echo "  Stop services:    docker-compose down"
+echo "  View logs:        $DOCKER_COMPOSE logs -f"
+echo "  View API logs:    $DOCKER_COMPOSE logs -f api"
+echo "  View worker logs: $DOCKER_COMPOSE logs -f worker"
+echo "  Check status:     $DOCKER_COMPOSE ps"
+echo "  Stop services:    $DOCKER_COMPOSE down"
 echo ""
