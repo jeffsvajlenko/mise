@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install uv
 
 # Copy project files
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock ./
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
